@@ -16,10 +16,10 @@ client.on('messageDelete', (m) => {
 });
 
 client.on('interactionCreate', async (i) => {
-    if (!interaction.isButton() || i.customId !== 'create_ticket_btn') return;
+    if (!i.isButton() || i.customId !== 'create_ticket_btn') return;
     await i.deferReply({ ephemeral: true });
     const name = `ticket-${i.user.username.toLowerCase()}`;
-    if (i.guild.channels.cache.find(c => c.name === name)) return i.editReply(`⚠️ You already have an open ticket.`);
+    if (i.guild.channels.cache.find(c => c.name === name)) return i.editReply('⚠️ You already have an open ticket.');
     const ch = await i.guild.channels.create({ name, type: ChannelType.GuildText, permissionOverwrites: [{ id: i.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] }, { id: i.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }] });
     await ch.send({ content: `${i.user} • Support Team`, embeds: [new EmbedBuilder().setTitle('🎫 Ticket Opened').setDescription('Support will be with you shortly. Type `!close` to delete room.').setColor('#5865F2')] });
     return i.editReply(`✅ Ticket created: ${ch}`);
@@ -33,7 +33,7 @@ client.on('messageCreate', async (msg) => {
     if ((/(discord\.gg|discord\.com\/invite)\/[a-zA-Z0-9]+/i.test(msg.content) || bannedWords.some(w => msg.content.toLowerCase().includes(w))) && !msg.member.permissions.has(PermissionFlagsBits.Administrator)) {
         try { await msg.delete(); } catch {}
         if (!warnings[msg.author.id]) warnings[msg.author.id] = []; warnings[msg.author.id].push({ reason: 'AutoMod', mod: 'AutoMod', time: Date.now() });
-        const am = new EmbedBuilder().setTitle('🚫 AutoMod').setDescription(`**User:** ${msg.author}\n**Strikes:** \`${warnings[msg.author.id].length} Warnings\``).setColor('#ED4245');
+        const am = new EmbedBuilder().setTitle('🚫 AutoMod').setDescription(`**User:** ${msg.author}\n**Strikes:** ${warnings[msg.author.id].length} Warnings`).setColor('#ED4245');
         msg.channel.send({ embeds: [am] }); return sendLog(am);
     }
 
@@ -117,3 +117,4 @@ client.on('messageCreate', async (msg) => {
     }
     if (cmd === 'mute') {
         if (!msg.member.permissions.has(PermissionFlagsBits.ManageRoles)) return; if (!target) return;
+        let time = args[1] || '10m'; let r = args.slice(2).join(' ').trim(); if (!time.endsWith('s') && !time.endsWith('m') && !time.endsWith('h')) { time = '10m'; r = args.slice(1).join(' ').trim(); }
