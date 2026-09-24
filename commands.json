@@ -1,0 +1,21 @@
+{
+  "afk": "`!afk [reason]` - Sets status to away.",
+  "purge": "`!purge [1-99]` or `!c`/`!p` - Clears lines.",
+  "pus": "`!pus @user [1-99]` - Target purges a user.",
+  "snipe": "`!snipe` or `!s` - Recovers deleted messages.",
+  "cs": "`!cs` - Flushes snipes storage cache.",
+  "slowmode": "`!slowmode [time/off]` - Chat cooldown.",
+  "nick": "`!nick @user [name]` - Changes nickname.",
+  "cn": "`!cn @user` - Resets nickname to default.",
+  "warn": "`!warn @user [reason]` - Issues a strike.",
+  "warns": "`!warnings @user` - Checks warning history records.",
+  "clearwarns": "`!clearwarns @user` - Wipes active strikes.",
+  "mute": "`!mute @user [time] [reason]` - Temporary mute.",
+  "unmute": "`!unmute @user` - Restores access config.",
+  "kick": "`!kick @user [reason]` - Kicks user from guild.",
+  "ban": "`!ban @user [reason]` - Bans account permanently.",
+  "r": "`!r add/remove @user [role]` - Fuzzy changes roles.",
+  "say": "`!say #channel [text]` - Speaks anonymously.",
+  "ticket": "`!ticket [reason]` - Opens a support room.",
+  "close": "`!close` - Closes an active help ticket."
+}
