@@ -19,7 +19,7 @@ client.on('messageDelete', (m) => {
 });
 
 client.on('messageCreate', async (msg) => {
-    if (m.author?.bot || !msg.guild) return;
+    if (!msg.guild || msg.author?.bot) return;
     const logCh = msg.guild.channels.cache.find(ch => ch.name === 'mod-logs');
     const sendLog = (emb) => logCh?.send({ embeds: [emb] });
 
@@ -43,7 +43,7 @@ client.on('messageCreate', async (msg) => {
     const reason = args.slice(1).join(' ').trim();
 
     if (cmd === 'commands' || cmd === 'help') {
-        if (args && cmdHelp[args.toLowerCase()]) return msg.channel.send({ embeds: [new EmbedBuilder().setTitle(`📖 Help: !\${args.toLowerCase()}`).setDescription(cmdHelp[args.toLowerCase()]).setColor('#5865F2')] });
+        if (args[0] && cmdHelp[args[0].toLowerCase()]) return msg.channel.send({ embeds: [new EmbedBuilder().setTitle(`📖 Help: !\${args[0].toLowerCase()}`).setDescription(cmdHelp[args[0].toLowerCase()]).setColor('#5865F2')] });
         const list = Object.values(cmdHelp).join('\n');
         return msg.channel.send({ embeds: [new EmbedBuilder().setTitle('🛡️ Commands').setDescription(list).setColor('#5865F2')] });
     }
@@ -58,7 +58,7 @@ client.on('messageCreate', async (msg) => {
 
     if (cmd === 'purge' || cmd === 'c' || cmd === 'p') {
         if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return;
-        const amt = parseInt(args); if (isNaN(amt) || amt < 1 || amt > 99) return msg.reply("⚠️ Specify 1-99.");
+        const amt = parseInt(args[0]); if (isNaN(amt) || amt < 1 || amt > 99) return msg.reply("⚠️ Specify 1-99.");
         await msg.delete().catch(() => null); const del = await msg.channel.bulkDelete(amt, true);
         sendLog(new EmbedBuilder().setTitle('🧹 Purged').setDescription(`**Channel:** \${msg.channel}\n**Count:** \`${del.size + 1}\``).setColor('#5865F2'));
         return msg.channel.send(`🧹 **${del.size + 1}** messages purged.`).then(m => setTimeout(() => m.delete().catch(() => null), 4000));
@@ -66,7 +66,7 @@ client.on('messageCreate', async (msg) => {
 
     if (cmd === 'purgeuser' || cmd === 'pus') {
         if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return;
-        if (!target) return msg.reply("⚠️ Specify user."); const amt = parseInt(args);
+        if (!target) return msg.reply("⚠️ Specify user."); const amt = parseInt(args[1]);
         await msg.delete().catch(() => null); const fetched = await msg.channel.messages.fetch({ limit: 100 });
         const filtered = fetched.filter(m => m.author.id === target.id).toJSON().slice(0, amt || 10);
         if (filtered.length === 0) return msg.channel.send("❌ None found."); const del = await msg.channel.bulkDelete(filtered, true);
@@ -75,7 +75,7 @@ client.on('messageCreate', async (msg) => {
 
     if (cmd === 'r' || cmd === 'role') {
         if (!msg.member.permissions.has(PermissionFlagsBits.ManageRoles)) return;
-        const act = args?.toLowerCase(); const search = args.slice(2).join(' ').toLowerCase();
+        const act = args[0]?.toLowerCase(); const search = args.slice(2).join(' ').toLowerCase();
         const role = msg.guild.roles.cache.find(r => r.name.toLowerCase().includes(search));
         if (!role || !target) return msg.reply("❌ Error parameters.");
         if (act === 'add') await target.roles.add(role); else await target.roles.remove(role);
