@@ -108,13 +108,25 @@ client.on('messageCreate', async (msg) => {
         if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return; if (!target) return;
         if (!warnings[target.id]) warnings[target.id] = []; const r = reason || 'No reason provided'; warnings[target.id].push({ reason: r, mod: msg.author.username, time: Date.now() });
         msg.channel.send(`⚠️ **${target.user.username}** warned. Total strikes: **${warnings[target.id].length}**`);
-        await target.send({ embeds: [new EmbedBuilder().setTitle('Warned').setDescription(`You have been warned in **${msg.guild.name}**`).setColor('#E67E22').setTimestamp().addFields({ name: 'Moderator', value: `${msg.author.username}` }, { name: 'Reason', value: `${r}` })] }).catch(() => null);
-        return sendLog(new EmbedBuilder().setTitle('⚠️ Strike Issued').setDescription(`**Target:** ${target}\n**Mod:** ${msg.author}\n**Reason:** ${r}`).setColor('#F1C40F'));
+        
+        const guildIcon = msg.guild.iconURL({ dynamic: true }) || 'https://imgur.com';
+        const warnEmbed = new EmbedBuilder()
+            .setTitle('Warned')
+            .setDescription(`You have been warned in\n**${msg.guild.name}**`)
+            .setColor('#F2A400')
+            .setThumbnail(guildIcon)
+            .addFields(
+                { name: 'Moderator', value: `${msg.author.username}`, inline: false },
+                { name: 'Reason', value: `${r}`, inline: false }
+            )
+            .setFooter({ text: `Contact a staff member to discuss this warning` })
+            .setTimestamp();
+
+        await target.send({ embeds: [warnEmbed] }).catch(() => null);
+        return sendLog(warnEmbed);
     }
     if (cmd === 'warns' || cmd === 'warnings') {
-        if (!target) return; const list = warnings[target.id] || []; if (list.length === 0) return msg.channel.send(`✅ **${target.user.username}** has 0 warnings.`);
-        const desc = list.map((r, i) => `**${i + 1}.** *${r.reason}* (By Staff: \`${r.mod}\`)`).join('\n'); return msg.channel.send({ embeds: [new EmbedBuilder().setTitle(`🗃️ Warnings`).setDescription(desc)] });
+        if (!target) return; const list = warnings[target.id] || []; if (list.length === 0) return msg.channel.send(`✅ **${target.user.username}** has 0 active warnings.`);
+        const desc = list.map((r, i) => `**${i + 1}.** *${r.reason}* (By Staff: \`${r.mod}\`)`).join('\n'); return msg.channel.send({ embeds: [new EmbedBuilder().setTitle('🗃️ Warnings').setDescription(desc).setColor('#E67E22')] });
     }
     if (cmd === 'mute') {
-        if (!msg.member.permissions.has(PermissionFlagsBits.ManageRoles)) return; if (!target) return;
-        let time = args[1] || '10m'; let r = args.slice(2).join(' ').trim(); if (!time.endsWith('s') && !time.endsWith('m') && !time.endsWith('h')) { time = '10m'; r = args.slice(1).join(' ').trim(); }
