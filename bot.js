@@ -3,17 +3,80 @@ const { Client, GatewayIntentBits, PermissionFlagsBits, EmbedBuilder } = require
 const ms = require('ms');
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildBans]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildBans
+    ]
 });
 
 const warnings = {};
 const afkProfile = new Map();
+const snipes = new Map(); // Core memory storage bucket for deleted text tracking
+const bannedWords = ['badword1', 'badword2', 'toxictext'];
 
-client.once('ready', () => { console.log(`🚀 3C_GPT is fully online and ready with maximum speed!`); });
+client.once('ready', () => { console.log(`🚀 3C_GPT is fully online, ultra-fast, and loaded with the extended command kit!`); });
+
+// Message Deletion Memory Tracking Listener
+client.on('messageDelete', (message) => {
+    if (!message.guild || message.author?.bot) return;
+    
+    if (!snipes.has(message.channel.id)) snipes.set(message.channel.id, []);
+    const channelSnipes = snipes.get(message.channel.id);
+    
+    // Store message data at the beginning of the local array list
+    channelSnipes.unshift({
+        content: message.content || '[Image/Embed/Attachment]',
+        author: message.author,
+        timestamp: Date.now()
+    });
+    
+    // Cap memory history tracking threshold at the last 20 deletions per channel to save RAM speed
+    if (channelSnipes.length > 20) channelSnipes.pop();
+});
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
+    const logChannel = message.guild.channels.cache.find(ch => ch.name === 'mod-logs');
+    const sendLog = (embed) => { if (logChannel) logChannel.send({ embeds: [embed] }); };
+
+    // ==========================================
+    // 🚫 AUTOMOD SCANNER
+    // ==========================================
+    const hasInviteLink = /(discord\.gg|discord\.com\/invite)\/[a-zA-Z0-9]+/i.test(message.content);
+    const hasBannedWord = bannedWords.some(word => message.content.toLowerCase().includes(word));
+
+    if ((hasInviteLink || hasBannedWord) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        try { await message.delete(); } catch {}
+        if (!warnings[message.author.id]) warnings[message.author.id] = [];
+        
+        const triggerReason = hasInviteLink ? "Posting unauthorized server invite links" : "Using prohibited language";
+        warnings[message.author.id].push({
+            reason: triggerReason,
+            moderator: 'AutoMod System',
+            timestamp: Date.now()
+        });
+
+        message.channel.send({ embeds: [new EmbedBuilder().setTitle("🚫 AutoMod Filter Triggered").setDescription(`${message.author} has been warned automatically.\n📝 **Reason:** ${triggerReason}`).setColor('#ED4245').addFields({ name: 'Total Warnings', value: `${warnings[message.author.id].length}/3` })] });
+
+        if (warnings[message.author.id].length >= 3) {
+            warnings[message.author.id] = [];
+            try {
+                await message.member.send({ embeds: [new EmbedBuilder().setTitle('Banned').setDescription(`Automatically banned from ${message.guild.name} for hitting 3 strikes.`).setColor('#ED4245')] }).catch(() => null);
+                await message.member.ban({ reason: 'AutoMod: Reached 3 warnings.' });
+                message.channel.send(`🔨 **${message.author.tag}** has been automatically banned for accumulating 3 warnings.`);
+                return sendLog(new EmbedBuilder().setTitle('🔨 Automated Ban Triggered').setDescription(`**Target:** ${message.author.tag}\n**Reason:** Reached 3 warning metrics via AutoMod filter blocks.`).setColor('#ED4245').setTimestamp());
+            } catch { return message.channel.send("❌ Auto-ban failed due to role hierarchy limits."); }
+        }
+        return;
+    }
+
+    // ==========================================
+    // 💤 AFK ACTIONS
+    // ==========================================
     if (afkProfile.has(message.author.id)) {
         const data = afkProfile.get(message.author.id);
         afkProfile.delete(message.author.id);
@@ -33,12 +96,11 @@ client.on('messageCreate', async (message) => {
     const args = message.content.slice(1).trim().split(/ +/);
     const command = args.shift().toLowerCase();
     const target = message.mentions.members.first();
-
-    // Fix: Proper slice indices to completely skip command word and user mention
     const reason = args.slice(1).join(' ').trim();
+
     const replyMsg = (text) => reason ? `${text}\n📝 **Reason:** ${reason}` : text;
     const makeEmbed = (title, color) => {
-        const emb = new EmbedBuilder().setTitle(title).setDescription(`${title} from ${message.guild.name}`).setColor(color);
+        const emb = new EmbedBuilder().setTitle(title).setDescription(`${title} action executed in ${message.guild.name}`).setColor(color);
         if (reason) emb.addFields({ name: 'Reason', value: reason });
         return emb;
     };
@@ -49,125 +111,84 @@ client.on('messageCreate', async (message) => {
     }
 
     if (command === 'serverinfo') {
-        const embed = new EmbedBuilder().setTitle(`📊 ${message.guild.name} Stats`).setColor('#5865F2').addFields({ name: 'Members', value: `${message.guild.memberCount}`, inline: true });
-        return message.channel.send({ embeds: [embed] });
+        return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`📊 ${message.guild.name} Stats`).setColor('#5865F2').addFields({ name: 'Members', value: `${message.guild.memberCount}`, inline: true })] });
     }
 
-    if (command === 'mute') {
-        if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles)) return message.reply("❌ No permission.");
-        if (!target) return message.reply("⚠️ Specify a user.");
+    // ==========================================
+    // 🧹 PURGE ENGINE (!purge, !c, !p)
+    // ==========================================
+    if (command === 'purge' || command === 'c' || command === 'p') {
+        if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) return message.reply("❌ No permission.");
+        const amount = parseInt(args[0]);
+        if (isNaN(amount) || amount < 1 || amount > 99) return message.reply("⚠️ Specify an amount between 1 and 99.");
+
+        // Delete trigger command message first, then clear requested pool count
+        try {
+            await message.delete();
+            const deleted = await message.channel.bulkDelete(amount, true);
+            const totalPurged = deleted.size + 1; // Includes the initial command trigger removal line
+            
+            return message.channel.send(`🧹 **${totalPurged}** messages purged.`).then(msg => {
+                setTimeout(() => msg.delete().catch(() => null), 4000); // Cleans up output notification after 4 seconds
+            });
+        } catch { return message.reply("❌ Failed to purge text rows. Messages older than 14 days cannot be bulk deleted."); }
+    }
+
+    // ==========================================
+    // 🎯 MESSAGE SNIPE COMMANDS (!snipe, !s, !cs)
+    // ==========================================
+    if (command === 'snipe' || command === 's') {
+        const channelSnipes = snipes.get(message.channel.id) || [];
+        if (channelSnipes.length === 0) return message.channel.send("❌ There are no recently deleted messages to snipe in this channel!");
+
+        // Parse optional numbered offset integer argument (defaults to index position 0 for most recent deletion)
+        let index = parseInt(args[0]) - 1;
+        if (isNaN(index) || index < 0) index = 0;
+        if (index >= channelSnipes.length) return message.channel.send(`❌ Can't locate index history. Only the last **${channelSnipes.length}** deletions are stored.`);
+
+        const targetedSnipe = channelSnipes[index];
+        const timePassed = ms(Date.now() - targetedSnipe.timestamp, { long: true });
         
-        // Fix: Carefully target the element *after* the mention for the time variable
-        let timeArg = args[1]; 
-        let muteReason = args.slice(2).join(' ').trim();
+        const snipeEmbed = new EmbedBuilder()
+            .setAuthor({ name: targetedSnipe.author.tag, iconURL: targetedSnipe.author.displayAvatarURL({ dynamic: true }) })
+            .setDescription(targetedSnipe.content)
+            .setColor('#5865F2')
+            .setFooter({ text: `Deleted ${timePassed} ago • Message ${index + 1}/${channelSnipes.length}` });
 
-        // If the word after the mention isn't a proper time scale (e.g., no s, m, h, d), treat it as part of the reason
-        if (!timeArg || (!timeArg.endsWith('s') && !timeArg.endsWith('m') && !timeArg.endsWith('h') && !timeArg.endsWith('d'))) {
-            timeArg = '10m';
-            muteReason = args.slice(1).join(' ').trim();
+        return message.channel.send({ embeds: [snipeEmbed] });
+    }
+
+    if (command === 'cs') {
+        if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) return message.reply("❌ No permission.");
+        snipes.set(message.channel.id, []);
+        return message.react('✔️').catch(() => null);
+    }
+
+    // ==========================================
+    // 🎭 PROFILE NICKNAME UTILITIES (!nick, !n, !clearnick, !cn)
+    // ==========================================
+    if (command === 'nick' || command === 'n') {
+        const targetMember = target || message.member;
+        if (targetMember.id !== message.author.id && !message.member.permissions.has(PermissionFlagsBits.ManageNicknames)) {
+            return message.reply("❌ You do not have permissions to alter other user nicknames.");
         }
+        
+        const newNick = target ? args.slice(1).join(' ').trim() : args.join(' ').trim();
+        if (!newNick) return message.reply("⚠️ Usage: `!nick [new name]` or `!nick @member [new name]`");
 
-        let muteRole = message.guild.roles.cache.find(r => r.name.toLowerCase() === 'muted');
-        if (!muteRole) muteRole = await message.guild.roles.create({ name: 'Muted', color: '#818386' });
         try {
-            await message.channel.permissionOverwrites.edit(muteRole, { SendMessages: false, AddReactions: false, Speak: false });
-            await target.roles.add(muteRole);
-            
-            // Clean Mode Logic: Completely skip building the reason line if muteReason is blank
-            message.channel.send(muteReason ? `⏱️ **${target.user.tag}** muted for **${ms(ms(timeArg), { long: true })}**.\n📝 **Reason:** ${muteReason}` : `⏱️ **${target.user.tag}** muted for **${ms(ms(timeArg), { long: true })}**.`);
-            
-            setTimeout(async () => { if (target.roles.cache.has(muteRole.id)) await target.roles.remove(muteRole); }, ms(timeArg));
-        } catch { return message.reply("❌ Role block."); }
+            await targetMember.setNickname(newNick);
+            return message.channel.send(`✅ Successfully updated nickname mapping for **${targetMember.user.tag}** to *${newNick}*.`);
+        } catch { return message.reply("❌ Hierarchy permission layout block: I cannot change that user's name alignment."); }
     }
 
-    if (command === 'unmute') {
-        if (!target) return message.reply("⚠️ Specify user.");
-        const muteRole = message.guild.roles.cache.find(r => r.name.toLowerCase() === 'muted');
-        if (!muteRole || !target.roles.cache.has(muteRole.id)) return message.reply("❌ Not muted!");
-        await target.roles.remove(muteRole);
-        return message.channel.send(`🔊 **${target.user.tag}** unmuted.`);
-    }
-
-    if (command === 'kick') {
-        if (!message.member.permissions.has(PermissionFlagsBits.KickMembers)) return message.reply("❌ No permission.");
-        if (!target) return message.reply("⚠️ Specify member.");
+    if (command === 'clearnick' || command === 'cn') {
+        const targetMember = target || message.member;
+        if (targetMember.id !== message.author.id && !message.member.permissions.has(PermissionFlagsBits.ManageNicknames)) {
+            return message.reply("❌ No permission.");
+        }
         try {
-            await target.send({ embeds: [makeEmbed('Kicked', '#E67E22')] }).catch(() => null);
-            await target.kick(reason || undefined);
-            return message.channel.send(replyMsg(`🥾 **${target.user.tag}** kicked.`));
+            await targetMember.setNickname(null);
+            return message.channel.send(`🧹 Reset profile nickname structure back to normal for **${targetMember.user.tag}**.`);
         } catch { return message.reply("❌ Hierarchy block."); }
-    }
-
-    if (command === 'ban') {
-        if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) return message.reply("❌ No permission.");
-        if (!target) return message.reply("⚠️ Specify member.");
-        try {
-            await target.send({ embeds: [makeEmbed('Banned', '#ED4245')] }).catch(() => null);
-            await target.ban({ reason: reason || undefined });
-            return message.channel.send(replyMsg(`🔨 **${target.user.tag}** banned permanently.`));
-        } catch { return message.reply("❌ Hierarchy block."); }
-    }
-
-    if (command === 'unban') {
-        if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) return message.reply("❌ No permission.");
-        if (!args[0]) return message.reply("⚠️ Provide User ID.");
-        try { await message.guild.members.unban(args[0]); return message.channel.send(`🔊 Unbanned User ID: **${args[0]}**`); }
-        catch { return message.reply("❌ Ban record not found."); }
-    }
-
-    if (command === 'warn') {
-        if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) return message.reply("❌ No permission.");
-        if (!target) return message.reply("⚠️ Specify member.");
-        if (!warnings[target.id]) warnings[target.id] = [];
-        warnings[target.id].push(reason || 'Warned');
-        const dm = makeEmbed('Warned', '#FEE75C').addFields({ name: 'Total Warnings', value: `${warnings[target.id].length}` });
-        await target.send({ embeds: [dm] }).catch(() => null);
-        return message.channel.send(replyMsg(`⚠️ **${target.user.tag}** warned. Total: **${warnings[target.id].length}**`));
-    }
-
-    if (command === 'unwarn') {
-        if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) return message.reply("❌ No permission.");
-        if (!target || !warnings[target.id] || warnings[target.id].length === 0) return message.reply("❌ No warnings found.");
-        warnings[target.id].pop();
-        return message.channel.send(`🧹 Warning removed. Current total: **${warnings[target.id].length}**`);
-    }
-
-    if (command === 'warns' || command === 'warnings') {
-        if (!target) return message.reply("⚠️ Specify user.");
-        const list = warnings[target.id] || [];
-        if (list.length === 0) return message.channel.send(`✅ **${target.user.username}** has **0** warnings.`);
-        return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`⚠️ Infractions: ${target.user.username}`).setColor('#E67E22').setDescription(list.map((r, i) => `**${i + 1}.** ${r}`).join('\n'))] });
-    }
-
-    if (command === 'clearwarns') {
-        if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) return message.reply("❌ No permission.");
-        if (!target) return message.reply("⚠️ Specify user.");
-        warnings[target.id] = [];
-        return message.channel.send(`🧹 Wiped infractions for **${target.user.tag}**.`);
-    }
-
-    if (command === 'lock') {
-        if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) return message.reply("❌ No permission.");
-        await message.channel.permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: false });
-        return message.channel.send("🔒 Channel locked.");
-    }
-
-    if (command === 'unlock') {
-        if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) return message.reply("❌ No permission.");
-        await message.channel.permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: null });
-        return message.channel.send("🔓 Channel unlocked.");
-    }
-
-    if (command === 'r') {
-        if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles)) return message.reply("❌ No permission.");
-        const act = args[0]?.toLowerCase();
-        if ((act !== 'add' && act !== 'remove') || !target) return message.reply("⚠️ Use \`!r add/remove @user Role\`");
-        const rName = args.slice(2).join(' ').trim();
-        const role = message.guild.roles.cache.find(r => r.name.toLowerCase() === rName.toLowerCase());
-        if (!role) return message.reply(`❌ Role **${rName}** not found.`);
-        try { if (act === 'add') await target.roles.add(role); else await target.roles.remove(role); return message.channel.send(`✅ Roles updated.`); }
-        catch { return message.reply("❌ Hierarchy block."); }
-    }
-});
-
-client.login(process.env.DISCORD_TOKEN);
+        
