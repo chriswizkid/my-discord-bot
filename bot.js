@@ -10,10 +10,10 @@ let currentPrefix = '!';
 
 client.once('ready', () => { console.log('🚀 3C_GPT Private Orchestrator is online and stable!'); });
 
-client.on('messageDelete', (m) => {
-    if (!m.guild || m.author?.bot) return;
-    if (!snipes.has(m.channel.id)) snipes.set(m.channel.id, []);
-    snipes.get(m.channel.id).unshift({ content: m.content || '[Attachment]', author: m.author, timestamp: Date.now() });
+client.on('messageDelete', (message) => {
+    if (!message.guild || message.author?.bot) return;
+    if (!snipes.has(message.channel.id)) snipes.set(message.channel.id, []);
+    snipes.get(message.channel.id).unshift({ content: message.content || '[Attachment]', author: message.author, timestamp: Date.now() });
 });
 
 client.on('interactionCreate', async (i) => {
@@ -24,7 +24,7 @@ client.on('interactionCreate', async (i) => {
     if (i.guild.channels.cache.find(c => c.name === roomName)) return i.editReply('⚠️ You already have an open ticket.');
 
     const ch = await i.guild.channels.create({ name: roomName, type: ChannelType.GuildText, permissionOverwrites: [{ id: i.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] }, { id: i.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }] });
-    await ch.send({ content: i.user.toString() + ' • Staff Team', embeds: [new EmbedBuilder().setTitle('🎫 Help Ticket Opened').setDescription('Support will be with you shortly. Type `' + currentPrefix + 'close\` to delete room.').setColor('#5865F2')] });
+    await ch.send({ content: i.user.toString() + ' • Support Team', embeds: [new EmbedBuilder().setTitle('🎫 Help Ticket Opened').setDescription('Support will be with you shortly. Type `' + currentPrefix + 'close\` to delete room.').setColor('#5865F2')] });
     
     const logCh = i.guild.channels.cache.find(c => c.name === 'mod-logs');
     if (logCh) logCh.send({ embeds: [new EmbedBuilder().setTitle('🎫 Ticket Created').setDescription('**User:** ' + i.user.tag + '\n**Department:** `' + ticketType.toUpperCase() + '`').setColor('#57F287').setTimestamp()] });
