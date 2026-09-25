@@ -4,8 +4,7 @@ const ms = require('ms');
 const http = require('http');
 const cmdHelp = require('./commands.json');
 
-// ⚙️ CHRIS'S BUILT-IN RENDER FREE-TIER WEBSERVER BYPASS
-http.createServer((req, res) => { res.writeHead(200); res.end('3C_GPT Engine is Online!'); }).listen(process.env.PORT || 8080);
+http.createServer((req, res) => { res.writeHead(200); res.end('Online'); }).listen(process.env.PORT || 8080);
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildBans] });
 const warnings = {}; const afkProfile = new Map(); const snipes = new Map(); const editSnipes = new Map();
