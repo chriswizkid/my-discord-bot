@@ -3,54 +3,120 @@ const ms = require('ms');
 const cmdHelp = require('./commands.json');
 
 module.exports = async (msg, cmd, args, target, reason, warnings, afkProfile, snipes, editSnipes, sendLog, currentPrefix, setPrefix) => {
-    const dmCard = (title, color) => new EmbedBuilder().setTitle(title).setDescription('You have been ' + title.toLowerCase() + ' in\n**' + msg.guild.name + '**').setColor(color).setThumbnail(msg.guild.iconURL({ dynamic: true }) || 'https://imgur.com').addFields({ name: 'Moderator', value: msg.author.username, inline: false }).setTimestamp();
+    // Standard Branded private action DM card layout generator helper subroutine
+    const dispatchDmActionCard = async (targetUserAccount, operationalTitleLabel, cardHexColorBorder) => {
+        const guildProfilePictureIcon = msg.guild.iconURL({ dynamic: true }) || 'https://imgur.com';
+        const unifiedEmbedCard = new EmbedBuilder()
+            .setTitle(operationalTitleLabel)
+            .setDescription('You have been ' + operationalTitleLabel.toLowerCase() + ' in\n**' + msg.guild.name + '**')
+            .setColor(cardHexColorBorder)
+            .setThumbnail(guildProfilePictureIcon)
+            .addFields({ name: 'Moderator', value: msg.author.username, inline: false });
+        if (reason) unifiedEmbedCard.addFields({ name: 'Reason', value: reason, inline: false });
+        unifiedEmbedCard.setFooter({ text: 'Contact a staff member to discuss this administrative action file.' }).setTimestamp();
+        await targetUserAccount.send({ embeds: [unifiedEmbedCard] }).catch(() => null);
+    };
 
-    if (cmd === 'prefix') {
-        if (!msg.member.permissions.has(PermissionFlagsBits.Administrator)) return;
-        if (!args[0] || args[0].length > 3) return msg.reply("⚠️ Specify a valid symbol prefix (1-3 characters).");
-        setPrefix(args[0]); return msg.channel.send({ embeds: [new EmbedBuilder().setTitle('⚙️ Prefix Updated').setDescription('Prefix changed to: `' + args[0] + '`').setColor('#57F287')] });
-    }
+    // ==========================================
+    // 📖 HELPMENU SYSTEM MANPAGES PIPELINE
+    // ==========================================
     if (cmd === 'commands' || cmd === 'help') {
-        const sub = args[0]?.toLowerCase(); if (sub && cmdHelp[sub]) return msg.channel.send({ embeds: [new EmbedBuilder().setTitle('📖 Help: ' + currentPrefix + sub).setDescription(cmdHelp[sub]).setColor('#5865F2')] });
-        return msg.channel.send({ embeds: [new EmbedBuilder().setTitle('🛡️ Commands Manual').setDescription(Object.values(cmdHelp).join('\n')).setColor('#5865F2')] });
+        const targetLookupKeyString = args ? args.toLowerCase().trim() : null;
+        if (targetLookupKeyString && cmdHelp[targetLookupKeyString]) {
+            return msg.channel.send({ embeds: [new EmbedBuilder().setTitle('📖 Help Index Manual: ' + currentPrefix + targetLookupKeyString).setDescription(cmdHelp[targetLookupKeyString]).setColor('#5865F2')] });
+        }
+        const mGroup = ['warn','unwarn','mute','unmute','kick','ban','unban','purge','pus','slowmode','nick','clearnick','r','cs','ces'].map(c => currentPrefix + c).join(', ');
+        const uGroup = ['help','commands','afk','say','ticket','closeticket','serverinfo','snipe','es','prefix'].map(c => currentPrefix + c).join(', ');
+        return msg.channel.send({ embeds: [new EmbedBuilder().setTitle('🛡️ 3C Master Systems Command Registry Directory').setDescription('Type `' + currentPrefix + 'help [command]` to audit specific action metrics rules.\n\n📊 **Staff Administration Protocols:**\n' + mGroup + '\n\n⚙️ **Server General Utilities:**\n' + uGroup).setColor('#5865F2').setTimestamp()] });
     }
-    if (cmd === 'ticket') {
-        if (!msg.member.permissions.has(PermissionFlagsBits.Administrator)) return; msg.delete().catch(() => null);
-        const parts = args.join(' ').split('|'); const cat = parts[0] ? parts[0].trim().toLowerCase() : null; if (!cat) return msg.channel.send("⚠️ Format: `!ticket name | #hex | Title | Desc`");
-        const emb = new EmbedBuilder().setTitle(parts[2] ? parts[2].trim() : 'Support').setDescription(parts[3] ? parts[3].trim() : 'Click below to open a ticket.').setColor(parts[1] && parts[1].trim().startsWith('#') ? parts[1].trim() : '#5865F2');
-        return msg.channel.send({ embeds: [emb], components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket_' + cat).setLabel('Open Ticket 🎫').setStyle(ButtonStyle.Secondary))] });
-    }
-    if (cmd === 'say') { if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return; const txt = args.join(' ').trim(); if (!txt) return; await msg.delete().catch(() => null); return msg.channel.send(txt); }
-    if (cmd === 'purge' || cmd === 'c' || cmd === 'p') { if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return; const amt = parseInt(args[0]); if (isNaN(amt) || amt < 1 || amt > 99) return msg.reply("⚠️ Specify 1-99."); await msg.delete().catch(() => null); const del = await msg.channel.bulkDelete(amt, true).catch(() => null); if (del) return msg.channel.send('🧹 **' + del.size + '** messages purged.').then(m => setTimeout(() => m.delete().catch(() => null), 4000)); }
-    if (cmd === 'purgeuser' || cmd === 'pus') { if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return; if (!target) return; const amt = parseInt(args[1]) || 10; await msg.delete().catch(() => null); msg.channel.messages.fetch({ limit: 100 }).then(async f => { const filtered = f.filter(m => m.author.id === target.id).toJSON().slice(0, amt); const del = await msg.channel.bulkDelete(filtered, true).catch(() => null); if (del) return msg.channel.send('🧹 **' + del.size + '** messages cleared.').then(m => setTimeout(() => m.delete().catch(() => null), 4000)); }); return; }
-    if (cmd === 'slowmode') { if (!msg.member.permissions.has(PermissionFlagsBits.ManageChannels)) return; const time = args[0]?.toLowerCase(); if (!time) return; const secs = time === 'off' ? 0 : Math.floor(ms(time) / 1000); await msg.channel.setRateLimitPerUser(secs).catch(() => null); return msg.channel.send('⏱️ Slowmode set to **' + time + '**.'); }
-    if (cmd === 'nick' || cmd === 'n') { const t = target || msg.member; if (t.id !== msg.author.id && !msg.member.permissions.has(PermissionFlagsBits.ManageNicknames)) return; const name = target ? args.slice(1).join(' ') : args.join(' '); await t.setNickname(name || null).catch(() => null); return msg.channel.send('✅ Nickname updated.'); }
-    if (cmd === 'clearnick' || cmd === 'cn') { const t = target || msg.member; await t.setNickname(null).catch(() => null); return msg.channel.send('🧹 Nickname cleared.'); }
-    if (cmd === 'serverinfo') { return msg.channel.send({ embeds: [new EmbedBuilder().setTitle('📊 ' + msg.guild.name).setThumbnail(msg.guild.iconURL({ dynamic: true }) || 'https://imgur.com').setColor('#5865F2').addFields({ name: 'Members', value: msg.guild.memberCount.toString(), inline: true }).setTimestamp()] }); }
-    if (cmd === 'r' || cmd === 'role') { if (!msg.member.permissions.has(PermissionFlagsBits.ManageRoles)) return; const act = args[0]?.toLowerCase(); const search = args.slice(2).join(' ').toLowerCase(); const role = msg.guild.roles.cache.find(r => r.name.toLowerCase().includes(search)); if (!role || !target || (act !== 'add' && act !== 'give' && act !== 'remove')) return msg.reply("❌ Use: `!role add/remove @user [role]`"); try { if (act === 'remove') await target.roles.remove(role); else await target.roles.add(role); return msg.channel.send('✅ Role updated: **' + role.name + '**.'); } catch { return msg.reply("❌ Permission error."); } }
-    if (cmd === 'snipe' || cmd === 's') { const snip = snipes.get(msg.channel.id); if (!snip) return msg.channel.send("❌ No snipes."); return msg.channel.send({ embeds: [new EmbedBuilder().setDescription(snip.content).setAuthor({ name: snip.author.username, iconURL: snip.author.displayAvatarURL() }).setColor('#5865F2')] }); }
-    if (cmd === 'cs') { if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return; snipes.delete(msg.channel.id); return msg.react('✔️').catch(() => null); }
-    if (cmd === 'es') { const esnip = editSnipes.get(msg.channel.id); if (!esnip) return msg.channel.send("❌ No edit snipes."); return msg.channel.send({ embeds: [new EmbedBuilder().setAuthor({ name: esnip.author.username, iconURL: esnip.author.displayAvatarURL() }).setColor('#F1C40F').setTitle('📝 Edited Message').addFields({ name: 'Before', value: esnip.old }, { name: 'After', value: esnip.new })] }); }
-    if (cmd === 'ces') { if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return; editSnipes.delete(msg.channel.id); return msg.react('✔️').catch(() => null); }
-    if (cmd === 'closeticket' || cmd === 'ct') { if (!msg.channel.name.includes('ticket-')) return; await msg.channel.send('🧹 *Closing room in 5 seconds...*'); return setTimeout(() => msg.channel.delete().catch(() => null), 5000); }
-    if (cmd === 'afk') { afkProfile.set(msg.author.id, { reason: args.join(' ').trim() || null, time: Date.now() }); return msg.reply('💤 AFK status active.'); }
 
-    if (cmd === 'warn') {
-        if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return; if (!target) return; await msg.delete().catch(() => null);
-        if (!warnings[target.id]) warnings[target.id] = []; warnings[target.id].push({ reason, mod: msg.author.username, time: Date.now() });
-        msg.channel.send('⚠️ **' + target.user.username + '** warned.' + (reason ? ' Reason: ' + reason : '') + ' (Total strikes: **' + warnings[target.id].length + '**)');
-        const card = dmCard('Warned', '#F2A400'); if (reason) card.addFields({ name: 'Reason', value: reason });
-        await target.send({ embeds: [card] }).catch(() => null); return sendLog(card);
+    // ==========================================
+    // 🎫 TICKETY SPANER CUSTOM EMBED BUILDER
+    // ==========================================
+    if (cmd === 'ticket') {
+        if (!msg.member.permissions.has(PermissionFlagsBits.Administrator)) return;
+        await msg.delete().catch(() => null);
+
+        const joinedArgumentsTextString = args.join(' ');
+        const structuralPipeCuts = joinedArgumentsTextString.split('|');
+
+        const catRoutingKey = structuralPipeCuts[0] ? structuralPipeCuts[0].trim().toLowerCase() : null;
+        const panelBorderHex = structuralPipeCuts[1] ? structuralPipeCuts[1].trim() : '#5865F2';
+        const panelTitleHeader = structuralPipeCuts[2] ? structuralPipeCuts[2].trim() : 'Create a ticket';
+        const panelDescBodyText = structuralPipeCuts[3] ? structuralPipeCuts[3].trim() : 'Please click on the button below to open a ticket room.';
+
+        if (!catRoutingKey) return msg.channel.send("⚠️ Usage layout parameter requirements metric: `" + currentPrefix + "ticket category_name | #hex_color | Title Header Text | Description lines text body content`规定");
+
+        const setupPanelDisplayCard = new EmbedBuilder()
+            .setTitle(panelTitleHeader)
+            .setDescription(panelDescBodyText)
+            .setFooter({ text: 'Tickety Supporting Room Systems Interface Engine' })
+            .setColor(panelBorderHex.startsWith('#') ? panelBorderHex : '#5865F2').setTimestamp();
+
+        const componentsRowWrapper = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('ticket_' + catRoutingKey).setLabel('Open Ticket 🎫').setStyle(ButtonStyle.Secondary)
+        );
+
+        sendLog(new EmbedBuilder().setTitle('🎫 Tickety Interface Element Spawned').setDescription('**Department Layout Key Category Name:** `' + catRoutingKey.toUpperCase() + '`\n**Target Setup Channel:** ' + msg.channel.toString() + '\n**Color Mapping Hex:** `' + panelBorderHex + '`').setColor('#5865F2').setTimestamp());
+        return msg.channel.send({ embeds: [setupPanelDisplayCard], components: [componentsRowWrapper] });
     }
-    if (cmd === 'unwarn') { if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return; if (!target) return; const amt = parseInt(args[1]) || 1; const list = warnings[target.id] || []; if (list.length === 0) return msg.channel.send("❌ No warnings found."); for(let j=0; j<amt; j++) { list.pop(); } return msg.channel.send('🧹 Removed warnings. Current Total: **' + list.length + '**'); }
-    if (cmd === 'warns' || cmd === 'warnings') { if (!target) return; const list = warnings[target.id] || []; if (list.length === 0) return msg.channel.send('✅ **' + target.user.username + '** has 0 warnings.'); const desc = list.map((r, idx) => '**' + (idx + 1) + '.** *' + r.reason + '* (By: `' + r.mod + '`)').join('\n'); return msg.channel.send({ embeds: [new EmbedBuilder().setTitle('🗃️ Warnings').setDescription(desc).setColor('#E67E22')] }); }
-    if (cmd === 'clearwarns') { if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return; if (!target) return; warnings[target.id] = []; return msg.channel.send('🧹 Wiped infractions.'); }
-    if (cmd === 'mute') {
-        if (!msg.member.permissions.has(PermissionFlagsBits.ManageRoles)) return; if (!target) return; await msg.delete().catch(() => null);
-        let time = args[1] || '10m'; let r = args.slice(2).join(' ').trim() || null; if (!time.endsWith('s') && !time.endsWith('m') && !time.endsWith('h')) { time = '10m'; r = args.slice(1).join(' ').trim() || null; }
-        let role = msg.guild.roles.cache.find(ro => ro.name.toLowerCase() === 'muted'); if (!role) role = await msg.guild.roles.create({ name: 'Muted', color: '#818386' });
-        if (target.roles.cache.has(role.id)) return msg.channel.send('⚠️ **' + target.user.username + '** is already muted!');
-        await msg.channel.permissionOverwrites.edit(role, { SendMessages: false }); await target.roles.add(role);
-        msg.channel.send('⏱️ **' + target.user.username + '** muted for **' + time + '**.' + (r ? ' Reason: ' + r : ''));
-        const card = dmCard('Muted', '#E67E22'); if (r) card.addFields({ name: 'Reason', value: r }); await target.send({ embeds: [card] }).catch(() => null); sendLog(card);
-        return setTimeout(async () => { await target.roles.remove(role).catch(() => null); }, ms(time));
+
+    // ==========================================
+    // 🗣️ ANONYMOUS BOT BROADCASTER
+    // ==========================================
+    if (cmd === 'say') {
+        if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return;
+        const rawBodyTextPayload = args.join(' ').trim(); if (!rawBodyTextPayload) return;
+        await msg.delete().catch(() => null); return msg.channel.send(rawBodyTextPayload);
+    }
+
+    // ==========================================
+    // 🧹 DUAL BULK PURGE ROUTINES SYSTEM
+    // ==========================================
+    if (cmd === 'purge' || cmd === 'c' || cmd === 'p') {
+        if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return;
+        const totalLinesCount = parseInt(args); if (isNaN(totalLinesCount) || totalLinesCount < 1 || totalLinesCount > 99) return msg.reply("⚠️ Specify an amount window limit parameter between 1 and 99 messages.");
+        await msg.delete().catch(() => null); const del = await msg.channel.bulkDelete(totalLinesCount, true).catch(() => null);
+        if (del) {
+            sendLog(new EmbedBuilder().setTitle('🧹 Chat Purge Log Entry').setDescription('**Text Channel Target:** ' + msg.channel.toString() + '\n**Staff Moderator Account:** ' + msg.author.toString() + '\n**Cleared lines count:** `' + del.size + '` rows').setColor('#34495E').setTimestamp());
+            return msg.channel.send('🧹 **' + (del.size + 1) + '** messages purged.').then(m => setTimeout(() => m.delete().catch(() => null), 4000));
+        }
+    }
+
+    if (cmd === 'purgeuser' || cmd === 'pus') {
+        if (!msg.member.permissions.has(PermissionFlagsBits.ManageMessages)) return; if (!target) return msg.reply("⚠️ Target user check profile verification tag reference mapping layout needed.");
+        const userPurgeRowConstraint = parseInt(args) || 10; await msg.delete().catch(() => null);
+        msg.channel.messages.fetch({ limit: 100 }).then(async elementsCacheCollection => {
+            const isolatedRows = elementsCacheCollection.filter(m => m.author.id === target.id).toJSON().slice(0, userPurgeRowConstraint);
+            if (isolatedRows.length === 0) return msg.channel.send("❌ Could not isolate any recent chat dialogue lines belonging to that user validation profile.");
+            const del = await msg.channel.bulkDelete(isolatedRows, true).catch(() => null);
+            if (del) {
+                sendLog(new EmbedBuilder().setTitle('🧹 Target Profile Purge Completed Log').setDescription('**Target account profile:** ' + target.toString() + '\n**Channel line location:** ' + msg.channel.toString() + '\n**Moderator:** ' + msg.author.toString() + '\n**Cleared Lines:** `' + del.size + '` rows').setColor('#34495E').setTimestamp());
+                return msg.channel.send('🧹 **' + del.size + '** messages belonging to **' + target.user.username + '** cleared cleanly.').then(m => setTimeout(() => m.delete().catch(() => null), 4000));
+            }
+        });
+        return;
+    }
+
+    // ==========================================
+    // ⏱️ NATIVE CHANNEL RATELIMIT COOLDOWNS & NICKNAMES
+    // ==========================================
+    if (cmd === 'slowmode') {
+        if (!msg.member.permissions.has(PermissionFlagsBits.ManageChannels)) return;
+        const timingWindowInput = args?.toLowerCase(); if (!timingWindowInput) return msg.reply("⚠️ Specify time duration mapping parameter value (e.g. `5s`, `10m`, `off`).");
+        const parsedSecondsDuration = timingWindowInput === 'off' ? 0 : Math.floor(ms(slowTimeInput) / 1000);
+        await msg.channel.setRateLimitPerUser(parsedSecondsDuration).catch(() => null);
+        const slowLogCardEmbed = new EmbedBuilder().setTitle('⏱️ Cooldown Throttle Threshold Modified').setDescription('**Channel:** ' + msg.channel.toString() + '\n**Staff Moderator:** ' + msg.author.toString() + '\n**Interval Mapping Value:** `' + timingWindowInput + '`').setColor('#F1C40F').setTimestamp();
+        msg.channel.send('⏱️ Slowmode throttling active interval window locked at: **' + slowTimeInput + '**.'); return sendLog(slowLogCardEmbed);
+    }
+
+    if (cmd === 'nick' || cmd === 'n') {
+        const t = target || msg.member; if (t.id !== msg.author.id && !msg.member.permissions.has(PermissionFlagsBits.ManageNicknames)) return;
+        const nicknameTextMapOverride = target ? args.slice(1).join(' ').trim() : args.join(' ').trim();
+        await t.setNickname(nicknameTextMapOverride || null).catch(() => null);
+        const nickLogCardEmbed = new EmbedBuilder().setTitle('🎭 Profile Nickname Overridden Log').setDescription('**Target Member:** ' + t.toString() + '\n**Moderator Author Account:** ' + msg.author.toString() + '\n**Identity Value String Mapping:** `' + (nicknameTextMapOverride || 'Reset back to default layout values') + '`').setColor('#9B59B6').setTimestamp();
+        msg.channel.send('✅ Nickname map configuration overrides established.'); return sendLog(nickLogCardEmbed);
+    }
+
+    if (cmd === 'clearnick' || cmd === 'cn') {
+        const t = target || msg.member; await t.setNickname(null).catch(() => null);
