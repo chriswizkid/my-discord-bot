@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, PermissionFlagsBits, EmbedBuilder, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, PermissionFlagsBits, EmbedBuilder, ChannelType } = require('discord.js');
 const ms = require('ms');
 const runModules = require('./modules.js');
 
@@ -9,8 +9,8 @@ const bannedWords = ['badword1', 'badword2']; let currentPrefix = '!';
 
 client.once('ready', () => { console.log('🚀 3C_GPT Private Orchestrator is online and stable!'); });
 
-client.on('messageDelete', (m) => { if (m.guild && !m.author?.bot) snipes.set(m.channel.id, { content: m.content || '[File Attachment]', author: m.author }); });
-client.on('messageUpdate', (o, n) => { if (o.guild && !o.author?.bot && o.content !== n.content) editSnipes.set(o.channel.id, { old: o.content || '[File]', new: n.content || '[File]', author: o.author }); });
+client.on('messageDelete', (m) => { if (m.guild && !m.author?.bot) snipes.set(m.channel.id, { content: m.content || '[Attachment]', author: m.author }); });
+client.on('messageUpdate', (o, n) => { if (o.guild && !o.author?.bot && o.content !== n.content) editSnipes.set(o.channel.id, { oldContent: o.content || '[File]', newContent: n.content || '[File]', author: o.author }); });
 
 client.on('interactionCreate', async (i) => {
     if (!i.isButton() || !i.customId.startsWith('ticket_')) return;
