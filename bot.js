@@ -7,19 +7,19 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 const warnings = {}; const afkProfile = new Map(); const snipes = new Map(); const editSnipes = new Map();
 const bannedWords = ['badword1', 'badword2']; let currentPrefix = '!';
 
-client.once('ready', () => { console.log('🚀 3C_GPT Private Orchestrator is online and stable!'); });
+client.once('ready', () => { console.log('🚀 3C_GPT Private Master Orchestrator is online and stable!'); });
 
-client.on('messageDelete', (m) => { if (m.guild && !m.author?.bot) snipes.set(m.channel.id, { content: m.content || '[Attachment]', author: m.author }); });
-client.on('messageUpdate', (o, n) => { if (o.guild && !o.author?.bot && o.content !== n.content) editSnipes.set(o.channel.id, { oldContent: o.content || '[File]', newContent: n.content || '[File]', author: o.author }); });
+client.on('messageDelete', (m) => { if (m.guild && !m.author?.bot) snipes.set(m.channel.id, { content: m.content || '[File Attachment]', author: m.author }); });
+client.on('messageUpdate', (o, n) => { if (o.guild && !o.author?.bot && o.content !== n.content) editSnipes.set(o.channel.id, { oldContent: o.content || '[File/Embed Payload]', newContent: n.content || '[File/Embed Payload]', author: o.author }); });
 
 client.on('interactionCreate', async (i) => {
     if (!i.isButton() || !i.customId.startsWith('ticket_')) return;
     await i.deferReply({ ephemeral: true }); const cat = i.customId.split('_')[1]; const room = 'ticket-' + cat + '-' + i.user.username.toLowerCase();
-    if (i.guild.channels.cache.find(c => c.name === room)) return i.editReply('⚠️ You already have an open ticket room here.');
+    if (i.guild.channels.cache.find(c => c.name === room)) return i.editReply('⚠️ You already have an open ticket support room line session active inside this server space.');
     const ch = await i.guild.channels.create({ name: room, type: ChannelType.GuildText, permissionOverwrites: [{ id: i.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] }, { id: i.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }] });
-    await ch.send({ content: i.user.toString() + ' • Support Team', embeds: [new EmbedBuilder().setTitle('🎫 ' + cat.toUpperCase() + ' Ticket Opened').setDescription('Support will be with you shortly. Type `' + currentPrefix + 'ct\` to close.').setColor('#5865F2')] });
-    const logCh = i.guild.channels.cache.find(c => c.name === 'mod-logs'); if (logCh) logCh.send({ embeds: [new EmbedBuilder().setTitle('🎫 Ticket Created').setDescription('**User:** ' + i.user.tag + '\n**Department:** `' + cat.toUpperCase() + '`').setColor('#57F287').setTimestamp()] });
-    return i.editReply('✅ Ticket opened: ' + ch.toString());
+    await ch.send({ content: i.user.toString() + ' • Support Desk Agents Team Pings', embeds: [new EmbedBuilder().setTitle('🎫 ' + cat.toUpperCase() + ' Help Ticket Opened').setDescription('Our specialized department agents will be with you shortly. Type `' + currentPrefix + 'ct\` to close.').setColor('#5865F2')] });
+    const logCh = i.guild.channels.cache.find(c => c.name === 'mod-logs'); if (logCh) logCh.send({ embeds: [new EmbedBuilder().setTitle('🎫 Help Ticket Created File Log').setDescription('**User account profile tag:** ' + i.user.tag + '\n**Department Category:** `' + cat.toUpperCase() + '`').setColor('#57F287').setTimestamp()] });
+    return i.editReply('✅ Your custom support path channel support room has been opened: ' + ch.toString());
 });
 
 client.on('messageCreate', async (msg) => {
@@ -28,9 +28,10 @@ client.on('messageCreate', async (msg) => {
 
     if (afkProfile.has(msg.author.id)) {
         const d = afkProfile.get(msg.author.id); afkProfile.delete(msg.author.id);
-        msg.reply('👋 Welcome back ' + msg.author.toString() + ', away status cleared (Away for: **' + ms(Date.now() - d.time, { long: true }) + '**).' + (d.reason ? '\n📝 **AFK Note:** *' + d.reason + '*' : ''));
+        const reasonTextLabelNotice = d.reason ? '\n📝 **AFK Note:** *' + d.reason + '*' : '';
+        msg.reply('👋 Welcome back ' + msg.author.toString() + ', away status cleared (Away for: **' + ms(Date.now() - d.time, { long: true }) + '**).' + reasonTextLabelNotice);
     }
-    if (msg.mentions.users.size > 0) msg.mentions.users.forEach(u => { if (afkProfile.has(u.id)) msg.reply('💤 **' + u.username + '** is AFK: *' + afkProfile.get(u.id).reason + '*'); });
+    if (msg.mentions.users.size > 0) msg.mentions.users.forEach(u => { if (afkProfile.has(u.id)) msg.reply('💤 **' + u.username + '** is AFK away: *' + afkProfile.get(u.id).reason + '*'); });
 
     if (!msg.content.startsWith(currentPrefix)) return;
     const args = msg.content.slice(currentPrefix.length).trim().split(/ +/); const cmd = args.shift().toLowerCase();
