@@ -21,3 +21,16 @@ Put the bot's highest role above roles it needs to manage.
 
 ## Important persistence note
 `data.json` stores prefixes, warnings and ticket-panel configs. Render's normal filesystem can be reset on redeploy/restart, so use a database or persistent disk if you need these settings to survive every restart.
+
+
+## Ticket panel setup
+Use `!ticket` by itself to open the interactive setup message. Click **Configure Ticket Panel**, then fill in:
+- Ticket name
+- Embed color
+- Embed title
+- Embed description (multi-line)
+
+## Audit log
+Use `!setupaudit` (or `!auditsetup`) once. The bot creates a private `#3c-audit-log` channel and records moderation actions and ticket activity such as warnings, timeouts, kicks, bans, role changes, locks/unlocks, purges, and ticket creation/closure.
+
+After it creates the channel, add your staff/mod role to the channel's **View Channel** permission so staff can read the logs.
